@@ -1,12 +1,14 @@
 import type { TodoItemType } from "../types/TodoItemTypes";
 
 interface TodoItemProps {
-  onToggleComplete: (id: string) => void;
+  onToggleComplete: (id: number) => void;
+  onDelete: (id: number) => void;
   todoItem: TodoItemType;
 }
 
+
 // ✅ GOOD: small, single-responsibility presentational component with clearly typed props (no `any`) — easy to render and assert on in isolation with React Testing Library.
-const TodoItem = ({ onToggleComplete, todoItem }: TodoItemProps) => {
+const TodoItem = ({ onToggleComplete, onDelete, todoItem }: TodoItemProps) => {
   return (
     <div
       style={{
@@ -19,11 +21,17 @@ const TodoItem = ({ onToggleComplete, todoItem }: TodoItemProps) => {
     >
       <div style={{ textDecoration: todoItem.completed ? "line-through" : "" }}>{todoItem.itemDesc}</div>
       <div>
-        {/* 🔧 IMPROVE [Med]: A "Done/Undo" button is keyboard-usable, but the spec calls for checkbox semantics for toggle, and a real checkbox exposes its checked state to assistive tech for free. Consider <input type="checkbox" checked={todoItem.completed} onChange={() => onToggleComplete(todoItem.id)} aria-label={`Mark "${todoItem.itemDesc}" complete`} />. */}
-        <button onClick={() => {
+        {/* ✅ GOOD: real checkbox with `checked` bound to state — exactly the checkbox semantics the previous review asked for; a screen reader now announces checked/unchecked for free. */}
+        {/* 🔧 IMPROVE [Med]: The checkbox has no accessible name (no <label>/aria-label), so a screen reader announces only "checkbox", not which todo it toggles. Add aria-label={`Mark "${todoItem.itemDesc}" ${todoItem.completed ? "incomplete" : "complete"}`}. */}
+        <input type="checkbox" checked={todoItem.completed} onChange={() => {
           onToggleComplete(todoItem.id)
-        }}>{todoItem.completed ? "Undo" : "Done"}</button>
-        {/* 🔧 IMPROVE [High]: No delete control here — "delete a todo" was a core requirement and there is no button/handler for it anywhere in the app (needs an onDelete prop passed down + a Delete <button>). */}
+        }} />
+
+        {/* ✅ GOOD: delete is now implemented — this was flagged as a missing core requirement in the previous pass. */}
+        <button onClick={() => {
+          onDelete(todoItem.id)
+        }}>Delete</button>
+
       </div>
     </div>
   );

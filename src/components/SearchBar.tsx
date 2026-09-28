@@ -1,13 +1,12 @@
 import { useState } from "react"
 
-// 🔧 IMPROVE [Low]: Interface shares its name with the component (`SearchBar`) — TS allows it (types and values live in separate namespaces) but it's confusing to read/import and easy to typo. Rename to `SearchBarProps`.
-interface SearchBar {
+interface SearchBarProps {
   onSearch: (searchTerm: string) => void
   onClear: () => void
 }
 
-// 🔧 IMPROVE [High]: The assignment asked for an all/active/done filter, not free-text search. There's no filter state or UI anywhere in this app — this component solves a different problem than the one that was assigned, so that requirement is effectively unmet.
-const SearchBar = ({ onSearch, onClear }: SearchBar) => {
+// 🔧 IMPROVE [Med]: The component itself is now also named `SearchBarProps` (looks like the earlier interface rename accidentally renamed the component too, e.g. via find-and-replace). A `*Props` name should be reserved for the prop type — a component called `SearchBarProps` is confusing on import (`import SearchBarProps from "./SearchBar"`) and in JSX (`<SearchBarProps />` reads like a type, not a component). Rename the component back to `SearchBar`.
+const SearchBarProps = ({ onSearch, onClear }: SearchBarProps) => {
   // ✅ GOOD: controlled input — value is driven from state and onChange keeps it in sync, so React (not the DOM) stays the source of truth for the field.
   const [searchTerm, setSearchTerm] = useState<string>("")
 
@@ -28,10 +27,10 @@ const SearchBar = ({ onSearch, onClear }: SearchBar) => {
       }}
       />
       <div>
-        {/* 🔧 IMPROVE [Low]: onSearch already fires on every keystroke in onChange above, so clicking this re-runs an identical search with no new input — a dead click. Either make searching button/Enter-triggered only (drop the live onChange call), or remove this button. */}
-        <button onClick={() => {
+        {/* 🔧 IMPROVE [Low]: Commented-out dead code left in the render — delete it instead of leaving it commented out (source control already keeps the history). */}
+        {/* <button onClick={() => {
           onSearch(searchTerm)
-        }}>Search</button>
+        }}>Search</button> */}
         <button onClick={() => {
           onClear()
         }}>Clear</button>
@@ -40,4 +39,4 @@ const SearchBar = ({ onSearch, onClear }: SearchBar) => {
   </div>
 }
 
-export default SearchBar
+export default SearchBarProps

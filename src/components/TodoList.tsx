@@ -1,33 +1,40 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { TodoItemType } from "../types/TodoItemTypes";
-import SearchBar from "./SearchBar";
+import SearchBarProps from "./SearchBar";
 import TodoItem from "./TodoItem";
-// 🔧 IMPROVE [Low]: Empty props interface with a commented-out field — dead code. Either delete the interface (and the `{ }` destructure below) or actually accept `itemsList` as a prop.
+
+// 🔧 IMPROVE [Low]: Empty props interface with no fields — dead code. Delete it (and the `{ }` destructure below) unless this component is meant to accept props.
 interface TodoListProps {
-  // itemsList: TodoItemType[]
+
 }
 const TodoList = ({ }: TodoListProps) => {
 
-  // this list would come from the controller
-  // 🔧 IMPROVE [High]: Two separate state arrays holding the same data violate single source of truth, and they silently drift apart. Concretely: handleToggleComplete toggles whatever is in `itemsList` (which may already be search-filtered) and only calls setItemsList — it never updates `originalItemsList`. So toggle a todo while a search filter is active, then hit Clear, and the toggle is lost (Clear restores the stale `originalItemsList`, not the mutated list). Fix: keep one array of todos in state, keep a separate `filter`/`searchTerm` piece of state, and compute the visible list with useMemo/derived-at-render, e.g. `const visible = todos.filter(...)`.
-  const [originalItemsList, setOriginalItemsList] = useState<TodoItemType[]>([
-    { id: "1", itemDesc: "item 1", completed: false },
-    { id: "2", itemDesc: "item 2", completed: true },
-    { id: "3", itemDesc: "item 3", completed: false },
-    { id: "4", itemDesc: "item 4", completed: false },
+  const [newTodo, setNewTodo] = useState<string>("")
+  // ✅ GOOD: itemsList is now the single canonical source of truth — search no longer overwrites it (see visibleItemsList below). This resolves the earlier High-severity bug where toggling/deleting while a search filter was active silently lost data on Clear.
+  const [itemsList, setItemsList] = useState<TodoItemType[]>([
+    { id: 1, itemDesc: "item 1", completed: false },
+    { id: 2, itemDesc: "item 2", completed: true },
+    { id: 3, itemDesc: "item 3", completed: false },
+    { id: 4, itemDesc: "item 4", completed: false },
   ]);
 
-  // 🔧 IMPROVE [Low]: Identical literal array duplicated from originalItemsList above — if the seed data ever changes it now has to be edited in two places and will eventually disagree.
-  const [itemsList, setItemsList] = useState<TodoItemType[]>([
-    { id: "1", itemDesc: "item 1", completed: false },
-    { id: "2", itemDesc: "item 2", completed: true },
-    { id: "3", itemDesc: "item 3", completed: false },
-    { id: "4", itemDesc: "item 4", completed: false },
-  ]);
-  // 🔧 IMPROVE [High]: There is no "add a todo" feature anywhere in this file — no input/form, no state field for new-todo text, and no handler that pushes a new TodoItemType into state. This was one of the four core requirements and it's entirely missing.
-  // 🔧 IMPROVE [High]: There is no "delete a todo" feature anywhere in this file — no handler that removes an item by id (e.g. setItemsList(prev => prev.filter(i => i.id !== id))), and TodoItem/TodoList never render a delete control. Also a core requirement, also entirely missing.
+  const [searchTerm, setSearchTerm] = useState<string>("")
+
+  // ✅ GOOD: "add a todo" is now implemented, with an empty/whitespace-only guard and the input cleared after adding — both were explicit requirements.
+  // 🔧 IMPROVE [High]: `itemsList[itemsList.length - 1].id` throws if itemsList is empty (e.g. delete every todo, then try to add one) — `itemsList[-1]` is undefined, so `.id` crashes the app. Don't derive the new id from the last element; use a monotonically increasing ref/counter, `crypto.randomUUID()`, or `Date.now()` instead.
+  const handleAddTodo = (itemDesc: string) => {
+    if (!itemDesc || itemDesc.trim() === "") return
+    const latestId = itemsList[itemsList.length - 1].id + 1
+    setItemsList((prev) => [...prev, {
+      id: latestId,
+      itemDesc: itemDesc,
+      completed: false
+    }])
+    setNewTodo("")
+  }
+
   // ✅ GOOD: toggling is done immutably — map + object spread produces new item/array references instead of mutating todoItem.completed in place, which is exactly what React needs to detect the change.
-  const handleToggleComplete = (id: string) => {
+  const handleToggleComplete = (id: number) => {
     const toggledItems = itemsList.map((item) => {
       if (item.id === id) {
         return { ...item, completed: !item.completed }
@@ -36,33 +43,56 @@ const TodoList = ({ }: TodoListProps) => {
     })
     setItemsList(toggledItems)
   };
-  // 🔧 IMPROVE [High]: This filters `itemsList` — which may already be a previously-narrowed search result — instead of `originalItemsList`. Typing "ab" then backspacing to "a" re-filters the already-narrowed list, so items that matched "a" but not "ab" never come back until Clear is pressed. Filter from the untouched source list instead: `originalItemsList.filter(item => item.itemDesc.includes(searchTerm))`.
+
+  // 🔧 IMPROVE [Low]: parameter `searchTerm` shadows the outer `searchTerm` state variable of the same name — works correctly here, but reads as if it might be reassigning state directly. A different parameter name (e.g. `term`) would be clearer.
   const handleOnSearch = (searchTerm: string) => {
-    const filtered = itemsList.filter((item) => item.itemDesc.includes(searchTerm))
-    setItemsList(filtered)
+    setSearchTerm(searchTerm)
+
   };
   const handleOnClear = () => {
-    setItemsList(originalItemsList)
+    setSearchTerm("")
+  }
+
+  // ✅ GOOD: delete is implemented and stays immutable (filter returns a new array rather than mutating itemsList).
+  const handleOnDelete = (id: number) => {
+    const filtered = itemsList.filter((item) => item.id !== id)
+    setItemsList(filtered)
   }
 
 
+  // ✅ GOOD: this is the derived-state fix from the previous review — the visible list is computed during render from the canonical itemsList + searchTerm via useMemo, instead of being stored as its own state. Clear, backspacing mid-search, and toggling/deleting while filtered all now behave correctly.
+  const visibleItemsList = useMemo(() => {
+    return itemsList.filter((item) => item.itemDesc.includes(searchTerm))
+  }, [searchTerm, itemsList])
+
   return (
     <div style={{ border: "1px solid grey", padding: "1rem" }}>
+
       {/* 🔧 IMPROVE [Low]: Bare text, not a heading element — screen reader users navigating by headings won't find this. Use <h1>/<h2>Todo List</h2>. */}
       Todo List
       <div>
-        {/* 🔧 IMPROVE [High]: This is the app's only filter-like control, and it's a text search box, not the all/active/done filter the assignment asked for — that requirement has no implementation at all (no filter state, no All/Active/Done buttons). */}
-        <SearchBar onSearch={handleOnSearch} onClear={handleOnClear} />
+        <SearchBarProps onSearch={handleOnSearch} onClear={handleOnClear} />
       </div>
+      <div>
+        {/* 🔧 IMPROVE [High]: No <form onSubmit>/preventDefault wraps the add-todo input — pressing Enter does nothing, only clicking "Add" works. The spec explicitly asks for submit-on-Enter. Wrap input + button in <form onSubmit={(e) => { e.preventDefault(); handleAddTodo(newTodo) }}> and drop the button's own onClick. */}
+        {/* 🔧 IMPROVE [Med]: No <label>/aria-label on this input either — same accessibility gap as the search input. */}
+        <input type="text" placeholder="New item..." onChange={(e) => {
+          setNewTodo(e.target.value)
+        }} value={newTodo} />
+        <button onClick={() => {
+          handleAddTodo(newTodo)
+        }}>Add</button>
+      </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 20 }}>
-        {itemsList.map((item) => {
+        {visibleItemsList.map((item) => {
           return (
-            // 🔧 IMPROVE [High]: No `key` prop passed to TodoItem in this .map() — React will warn and fall back to index-based reconciliation, which can misassociate state/DOM across re-renders when the list is reordered or filtered. Add key={item.id}.
-            <TodoItem todoItem={item} onToggleComplete={handleToggleComplete} />
+            // ✅ GOOD: stable key={item.id} is now passed — this was flagged as missing/High in the previous review.
+            <TodoItem key={item.id} todoItem={item} onToggleComplete={handleToggleComplete} onDelete={handleOnDelete} />
           );
         })}
-        {/* ✅ GOOD: explicit empty-state message instead of silently rendering nothing. */}
-        {itemsList.length === 0 && "No items found."}
+
+        {visibleItemsList.length === 0 && "No items found."}
       </div>
     </div>
   );
